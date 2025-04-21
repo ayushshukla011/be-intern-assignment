@@ -3,6 +3,7 @@ import { User } from '../entities/User';
 import { AppDataSource } from '../data-source';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { AuthRequest } from '../middlewares/auth.middleware';
 
 const userRepository = AppDataSource.getRepository(User);
 
@@ -40,14 +41,27 @@ export const createUser = async (req: Request, res: Response) => {
   }
 };
 
-export const updateUser = async (req: Request, res: Response) => {
+export const updateUser = async (req: AuthRequest, res: Response) => {
   try {
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const userId = parseInt(req.params.id);
+    
+    // Check if user is trying to update their own account
+    if (req.user.id !== userId) {
+      return res.status(403).json({ message: 'You can only update your own account' });
+    }
+
     const user = await userRepository.findOneBy({
-      id: parseInt(req.params.id),
+      id: userId,
     });
+    
     if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
+    
     userRepository.merge(user, req.body);
     const result = await userRepository.save(user);
     res.json(result);
@@ -56,12 +70,25 @@ export const updateUser = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteUser = async (req: Request, res: Response) => {
+export const deleteUser = async (req: AuthRequest, res: Response) => {
   try {
-    const result = await userRepository.delete(parseInt(req.params.id));
+    if (!req.user) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const userId = parseInt(req.params.id);
+    
+    // Check if user is trying to delete their own account
+    if (req.user.id !== userId) {
+      return res.status(403).json({ message: 'You can only delete your own account' });
+    }
+
+    const result = await userRepository.delete(userId);
+    
     if (result.affected === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
+    
     res.status(204).send();
   } catch (error) {
     res.status(500).json({ message: 'Error deleting user', error });
