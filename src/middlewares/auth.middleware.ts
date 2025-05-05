@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-
+import { AppDataSource } from '../data-source';
+import { User } from '../entities/User';
 // Define a type for the authenticated request
 export interface AuthRequest extends Request {
   user?: {
     id: number;
-    email: string;
+    email: string;  
   };
 }
 
@@ -34,6 +35,15 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
       
       const decoded = jwt.verify(token, secret) as { id: number; email: string };
       console.log('Decoded token:', decoded);
+      
+      // Check if user exists in the database
+      const userRepository = AppDataSource.getRepository(User);
+      
+      const user = userRepository.findOneBy({ id: decoded.id });    
+      if (!user) {
+        console.log(`User with id ${decoded.id} not found in database`);
+        return res.status(401).json({ error: 'Invalid user' });
+      }
       
       // Add user info to request
       req.user = {
